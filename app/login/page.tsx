@@ -1,4 +1,5 @@
 "use client";
+
 import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -9,12 +10,12 @@ import { auth } from "@/lib/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 
-const HOUSES = Array.from({ length: 4 }, (_, i) => ({
+const FLOATING_ELEMENTS = Array.from({ length: 7 }, (_, i) => ({
   id: i,
-  x: 10 + Math.random() * 80,
-  y: 10 + Math.random() * 80,
-  scale: 0.5 + Math.random() * 0.4,
-  duration: 60 + i * 15,
+  x: Math.random() * 100,           // full width — some drift into right side
+  y: Math.random() * 100,
+  scale: 0.35 + Math.random() * 0.45,
+  duration: 90 + i * 25,
   delay: i * 8,
 }));
 
@@ -70,11 +71,11 @@ export default function LoginPage() {
 
   if (loading || currentUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950">
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
         <motion.div
           animate={{ rotate: 360 }}
-          transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
-          className="h-12 w-12 rounded-full border-4 border-slate-700 border-t-sky-500"
+          transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          className="h-14 w-14 rounded-full border-4 border-slate-700 border-t-sky-500"
         />
       </div>
     );
@@ -83,23 +84,23 @@ export default function LoginPage() {
   const isLogin = mode === "login";
 
   return (
-    <div className="relative flex min-h-screen flex-col md:flex-row bg-slate-950 overflow-hidden">
-      {/* Background houses (very subtle) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {HOUSES.map((h) => (
+    <div className="relative min-h-screen bg-[radial-gradient(ellipse_at_center,rgba(59,130,246,0.07)_0%,transparent_65%)] overflow-hidden flex flex-col lg:flex-row">
+      {/* Floating subtle elements across whole page */}
+      <div className="absolute inset-0 pointer-events-none">
+        {FLOATING_ELEMENTS.map((el) => (
           <motion.div
-            key={h.id}
-            className="absolute text-7xl opacity-[0.025] pointer-events-none select-none"
-            style={{ left: `${h.x}%`, top: `${h.y}%` }}
+            key={el.id}
+            className="absolute text-8xl sm:text-9xl opacity-[0.014] select-none"
+            style={{ left: `${el.x}%`, top: `${el.y}%` }}
             animate={{
-              y: ["-50%", "150%"],
-              opacity: [0.015, 0.045, 0.015],
+              y: ["-30%", "130%"],
+              opacity: [0.008, 0.035, 0.008],
             }}
             transition={{
-              duration: h.duration,
+              duration: el.duration,
               repeat: Infinity,
               ease: "linear",
-              delay: h.delay,
+              delay: el.delay,
             }}
           >
             🏠
@@ -107,198 +108,152 @@ export default function LoginPage() {
         ))}
       </div>
 
-      {/* Left side – Marketing / Value prop (~1/3 on desktop) */}
-      <div className="relative z-10 flex w-full flex-col justify-between bg-gradient-to-br from-slate-950 via-indigo-950/10 to-slate-950 p-8 md:w-5/12 md:min-h-screen md:p-12 lg:p-16">
+      {/* Left side – Hero / Value prop */}
+      <div className="relative z-10 w-full lg:w-5/12 px-8 py-12 lg:px-16 lg:py-20 flex flex-col justify-between">
         {/* Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <motion.div
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 text-lg font-bold text-white shadow-lg shadow-sky-600/30"
-            whileHover={{ scale: 1.1, rotate: 8 }}
-            transition={{ type: "spring", stiffness: 300 }}
+            className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-2xl font-bold shadow-2xl shadow-sky-600/30"
+            whileHover={{ scale: 1.12, rotate: 6 }}
           >
             PL
           </motion.div>
-          <span className="text-xl font-semibold text-white">PMS Lite</span>
+          <span className="text-2xl font-bold tracking-tight">PMS Lite</span>
         </div>
 
         {/* Hero text */}
-        <div className="my-12 md:my-0">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-tight">
-            Manage your properties
+        <div className="my-16 space-y-8">
+          <h1 className="text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight">
+            Manage your
             <br />
-            <span className="text-sky-400">with ease and clarity.</span>
+            <span className="bg-gradient-to-r from-sky-400 via-blue-400 to-indigo-400 bg-clip-text text-transparent">
+              properties
+            </span>
+            <br />
+            with clarity.
           </h1>
-          <p className="mt-6 text-lg text-slate-300 max-w-md">
-            A lightweight, modern property management dashboard built for busy teams who value detail and simplicity.
+          <p className="text-xl lg:text-2xl text-slate-300 font-light max-w-xl">
+            Clean, modern dashboard for teams who value simplicity and control.
           </p>
         </div>
 
         {/* Features */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
           {[
-            {
-              icon: "🏠",
-              title: "Manage properties",
-              desc: "Add, edit, and organize listings effortlessly",
-            },
-            {
-              icon: "📅",
-              title: "Track availability",
-              desc: "See what's available or booked at a glance",
-            },
-            {
-              icon: "🔒",
-              title: "Secure access",
-              desc: "Firebase Auth keeps your data safe",
-            },
-          ].map((item, i) => (
+            { icon: "🏠", title: "Properties", desc: "Organize listings effortlessly" },
+            { icon: "📅", title: "Availability", desc: "Instant status overview" },
+            { icon: "🔒", title: "Secure", desc: "Protected by Firebase Auth" },
+          ].map((f, i) => (
             <motion.div
-              key={item.title}
-              initial={{ opacity: 0, y: 20 }}
+              key={f.title}
+              initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 + i * 0.15 }}
-              className="rounded-xl border border-slate-800/60 bg-slate-900/40 p-5 backdrop-blur-sm"
+              transition={{ delay: 0.5 + i * 0.15 }}
+              className="rounded-3xl border border-slate-700/50 bg-slate-900/45 p-7 backdrop-blur-lg shadow-xl hover:shadow-2xl hover:scale-[1.03] transition-all duration-300"
             >
-              <div className="text-2xl mb-3">{item.icon}</div>
-              <h4 className="font-medium text-white">{item.title}</h4>
-              <p className="mt-1 text-sm text-slate-400">{item.desc}</p>
+              <div className="text-5xl mb-5 opacity-90">{f.icon}</div>
+              <h4 className="text-lg font-semibold mb-2">{f.title}</h4>
+              <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
             </motion.div>
           ))}
         </div>
       </div>
 
-      {/* Right side – Login form (~2/3 on desktop) */}
-      <div className="relative z-10 flex w-full items-center justify-center bg-slate-950/80 p-6 md:w-7/12 md:p-12 lg:p-16">
+      {/* Right side – Form area */}
+      <div className="relative z-10 w-full lg:w-7/12 flex items-center justify-center px-6 py-12 lg:px-16 lg:py-20">
+        {/* Very faint overlay gradient to soften the black edges */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-950/30 to-slate-950 pointer-events-none" />
+
         <motion.div
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-          className="w-full max-w-md"
+          initial={{ opacity: 0, scale: 0.96, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="w-full max-w-lg relative"
         >
-          {/* Card */}
-          <div className="rounded-3xl border border-slate-700/50 bg-slate-900/70 p-8 md:p-10 backdrop-blur-xl shadow-2xl">
+          <div className="rounded-3xl border border-slate-700/40 bg-slate-900/60 p-10 lg:p-12 backdrop-blur-2xl shadow-[0_0_60px_-15px_rgba(59,130,246,0.18),0_25px_50px_-12px_rgba(0,0,0,0.6)] hover:shadow-[0_0_80px_-10px_rgba(59,130,246,0.25),0_30px_60px_-15px_rgba(0,0,0,0.7)] transition-shadow duration-500">
             {/* Mode toggle */}
-            <div className="mb-8 flex rounded-2xl bg-slate-950/60 p-1.5 ring-1 ring-slate-800/60">
-              <motion.button
+            <div className="relative flex rounded-2xl bg-slate-950/60 p-1.5 border border-slate-700/50 mb-10 overflow-hidden">
+              <motion.div
+                layoutId="mode-indicator"
+                className="absolute inset-y-0 w-1/2 rounded-xl bg-gradient-to-r from-sky-600/80 to-indigo-600/80"
+                animate={{ x: isLogin ? "0%" : "100%" }}
+                transition={{ type: "spring", stiffness: 380, damping: 32 }}
+              />
+              <button
                 type="button"
                 onClick={() => { setMode("login"); setError(null); }}
-                className={`flex-1 rounded-xl py-3 text-sm font-semibold transition-all ${
-                  isLogin
-                    ? "bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/25"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                whileTap={{ scale: 0.97 }}
+                className={`relative flex-1 py-4 text-base font-medium z-10 transition-colors ${isLogin ? "text-white" : "text-slate-400 hover:text-slate-200"}`}
               >
                 Log in
-              </motion.button>
-              <motion.button
+              </button>
+              <button
                 type="button"
                 onClick={() => { setMode("signup"); setError(null); }}
-                className={`flex-1 rounded-xl py-3 text-sm font-semibold transition-all ${
-                  !isLogin
-                    ? "bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/25"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-                whileTap={{ scale: 0.97 }}
+                className={`relative flex-1 py-4 text-base font-medium z-10 transition-colors ${!isLogin ? "text-white" : "text-slate-400 hover:text-slate-200"}`}
               >
                 Sign up
-              </motion.button>
+              </button>
             </div>
 
-            {/* Heading */}
-            <div className="mb-8 text-center">
-              <h1 className="text-2xl font-bold text-white">
-                {isLogin ? "Sign in to dashboard" : "Create account"}
-              </h1>
-              <p className="mt-2 text-sm text-slate-400">
-                {isLogin
-                  ? "Enter your credentials to access your properties."
-                  : "Get started with your property dashboard."}
+            <div className="text-center mb-10">
+              <h2 className="text-3xl font-bold tracking-tight">
+                {isLogin ? "Welcome back" : "Create account"}
+              </h2>
+              <p className="mt-3 text-slate-400">
+                {isLogin ? "Sign in to access your dashboard" : "Start managing properties today"}
               </p>
             </div>
 
-            {/* Error */}
             <AnimatePresence>
               {error && (
                 <motion.div
-                  initial={{ opacity: 0, y: -10 }}
+                  initial={{ opacity: 0, y: -16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="mb-6 rounded-xl border border-rose-500/30 bg-rose-950/30 px-4 py-3 text-sm text-rose-200"
+                  exit={{ opacity: 0, y: -16 }}
+                  className="mb-8 p-4 rounded-2xl bg-rose-950/40 border border-rose-800/50 text-rose-200 text-center text-sm"
                 >
                   {error}
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-1.5">
-                <motion.label
-                  htmlFor="email"
-                  animate={{
-                    y: email || emailFocused ? -6 : 0,
-                    scale: email || emailFocused ? 0.85 : 1,
-                    color: emailFocused ? "#38bdf8" : "#94a3b8",
-                  }}
-                  transition={{ duration: 0.2 }}
-                  className="block origin-left text-sm font-medium text-slate-400"
-                >
-                  Email
-                </motion.label>
+            <form onSubmit={handleSubmit} className="space-y-7">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2.5">Email address</label>
                 <input
-                  id="email"
                   type="email"
-                  autoComplete="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  onFocus={() => setEmailFocused(true)}
-                  onBlur={() => setEmailFocused(false)}
-                  className="w-full rounded-xl border border-slate-700/60 bg-slate-800/60 px-5 py-3.5 text-slate-100 placeholder:text-slate-500 focus:border-sky-500/60 focus:bg-slate-800 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all"
+                  required
+                  className="w-full px-5 py-4 rounded-2xl bg-slate-800/60 border border-slate-700/40 focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/20 text-slate-100 placeholder-slate-500 outline-none transition-all duration-200"
                   placeholder="you@example.com"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <motion.label
-                  htmlFor="password"
-                  animate={{
-                    y: password || passwordFocused ? -6 : 0,
-                    scale: password || passwordFocused ? 0.85 : 1,
-                    color: passwordFocused ? "#38bdf8" : "#94a3b8",
-                  }}
-                  transition={{ duration: 0.2 }}
-                  className="block origin-left text-sm font-medium text-slate-400"
-                >
-                  Password
-                </motion.label>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2.5">Password</label>
                 <div className="relative">
                   <input
-                    id="password"
                     type={showPassword ? "text" : "password"}
-                    autoComplete={isLogin ? "current-password" : "new-password"}
-                    required
-                    minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => setPasswordFocused(true)}
-                    onBlur={() => setPasswordFocused(false)}
-                    className="w-full rounded-xl border border-slate-700/60 bg-slate-800/60 px-5 py-3.5 pr-12 text-slate-100 placeholder:text-slate-500 focus:border-sky-500/60 focus:bg-slate-800 focus:ring-2 focus:ring-sky-500/20 outline-none transition-all"
+                    required
+                    minLength={6}
+                    className="w-full px-5 py-4 pr-14 rounded-2xl bg-slate-800/60 border border-slate-700/40 focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/20 text-slate-100 placeholder-slate-500 outline-none transition-all duration-200"
                     placeholder="••••••••"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-300 transition-colors"
+                    className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-300 transition-colors"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? (
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M2 2l20 20M6.712 6.72C3.664 8.126 2 12 2 12s3.182 6 10 6c2.21 0 4.073-.66 5.288-1.712M9.01 9.02a3 3 0 0 0 4.982 4.982M17.288 17.288C19.336 15.874 22 12 22 12s-3.182-6-10-6c-1.38 0-2.58.226-3.588.636" />
                       </svg>
                     ) : (
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                         <circle cx="12" cy="12" r="3" />
                       </svg>
@@ -310,37 +265,33 @@ export default function LoginPage() {
               <motion.button
                 type="submit"
                 disabled={submitting}
-                className="relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 py-4 text-base font-semibold text-white shadow-xl shadow-indigo-700/25 transition-all hover:shadow-indigo-600/40 disabled:opacity-60"
                 whileTap={{ scale: 0.98 }}
+                className={`w-full py-4.5 rounded-2xl font-semibold text-lg shadow-xl transition-all relative overflow-hidden ${
+                  submitting ? "bg-slate-700 cursor-not-allowed" : "bg-gradient-to-r from-sky-600 to-indigo-600 hover:shadow-2xl"
+                }`}
               >
                 {submitting ? (
                   <div className="flex items-center justify-center gap-3">
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="h-5 w-5 rounded-full border-2 border-white/30 border-t-white"
-                    />
-                    {isLogin ? "Signing in…" : "Creating account…"}
+                    <div className="h-5 w-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    {isLogin ? "Signing in..." : "Creating..."}
                   </div>
                 ) : isLogin ? (
                   "Sign in"
                 ) : (
                   "Create account"
                 )}
-
-                {/* Subtle shimmer */}
                 {!submitting && (
                   <motion.div
-                    className="absolute inset-0 -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/12 to-transparent -skew-x-12"
                     initial={{ x: "-120%" }}
                     animate={{ x: "220%" }}
-                    transition={{ duration: 3.5, repeat: Infinity, repeatDelay: 4, ease: "easeInOut" }}
+                    transition={{ duration: 3, repeat: Infinity, repeatDelay: 4 }}
                   />
                 )}
               </motion.button>
             </form>
 
-            <p className="mt-8 text-center text-xs text-slate-500">
+            <p className="mt-10 text-center text-sm text-slate-500">
               By continuing, you agree to our{" "}
               <span className="text-sky-400 hover:underline cursor-pointer">Terms</span> and{" "}
               <span className="text-sky-400 hover:underline cursor-pointer">Privacy Policy</span>
