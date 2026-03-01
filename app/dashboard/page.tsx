@@ -55,6 +55,8 @@ export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
+  // ── mobile sidebar toggle ──────────────────────────────────────────────────
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -144,14 +146,32 @@ export default function DashboardPage() {
     [properties]
   );
 
-  // Mock chart data for occupancy trend
+  // ── Real chart data ────────────────────────────────────────────────────────
+  // Build a 7-day history: for each of the past 7 days, count how many
+  // properties existed (createdAt <= that day) and split by current status.
+  // Properties without a createdAt are assumed to have existed from day 1.
   const chartData = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => ({
-      day: `Day ${i + 1}`,
-      available: Math.round(Math.random() * totalProperties),
-      booked: Math.round(Math.random() * totalProperties),
-    }));
-  }, [totalProperties]);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const dayEnd = new Date(today);
+      dayEnd.setDate(today.getDate() - (6 - i));
+
+      const label = dayEnd.toLocaleDateString([], { month: "short", day: "numeric" });
+
+      // Properties that existed on or before this day
+      const existingThatDay = properties.filter(
+        (p) => !p.createdAt || p.createdAt <= dayEnd
+      );
+
+      // Use current status as proxy (we don't have historical status changes)
+      const available = existingThatDay.filter((p) => p.status === "Available").length;
+      const booked = existingThatDay.filter((p) => p.status === "Booked").length;
+
+      return { day: label, available, booked };
+    });
+  }, [properties]);
 
   const handleLogout = async () => {
     try {
@@ -188,7 +208,6 @@ export default function DashboardPage() {
 
     try {
       if (editId) {
-        // Optimistic update
         setProperties((prev) =>
           prev.map((p) =>
             p.id === editId
@@ -252,7 +271,6 @@ export default function DashboardPage() {
     setError(null);
 
     try {
-      // Optimistic delete
       setProperties((prev) => prev.filter((p) => p.id !== id));
 
       await deleteDoc(doc(db, "properties", id));
@@ -287,19 +305,72 @@ export default function DashboardPage() {
   if (!currentUser) return null;
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-50 relative overflow-hidden">
-      {/* Background glow for depth */}
+    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-50 relative overflow-hidden md:flex-row">
+      {/* Background glow */}
       <div
         className="absolute inset-0 pointer-events-none opacity-10"
         style={{ background: "radial-gradient(circle at 50% 50%, #3b82f6, transparent 70%)" }}
       />
 
-      {/* Sidebar */}
+      {/* ── Mobile top bar ────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between border-b border-slate-800/60 bg-slate-900 px-4 py-3 md:hidden relative z-30">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-xs font-bold shadow-lg shadow-sky-500/30">
+            PL
+          </div>
+          <span className="text-sm font-semibold tracking-tight">PMS Lite</span>
+        </div>
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+          aria-label="Toggle menu"
+        >
+          {sidebarOpen ? (
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* ── Mobile drawer overlay ──────────────────────────────────────────── */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-20 bg-black/60 md:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.aside
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: "tween", duration: 0.25 }}
+              className="fixed left-0 top-0 z-30 flex h-full w-64 flex-col border-r border-slate-800/60 bg-gradient-to-b from-slate-900 to-slate-950 px-4 py-6 md:hidden"
+            >
+              <MobileSidebarContent
+                currentUser={currentUser}
+                onClose={() => setSidebarOpen(false)}
+                onLogout={handleLogout}
+              />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Desktop Sidebar ────────────────────────────────────────────────── */}
       <motion.aside
         initial={{ x: -256 }}
         animate={{ x: 0 }}
         transition={{ duration: 0.5 }}
-        className="flex w-64 flex-col border-r border-slate-800/60 bg-gradient-to-b from-slate-900 to-slate-950 px-4 py-6"
+        className="hidden md:flex w-64 flex-shrink-0 flex-col border-r border-slate-800/60 bg-gradient-to-b from-slate-900 to-slate-950 px-4 py-6"
       >
         {/* Logo */}
         <div className="mb-10 flex items-center gap-3 px-1">
@@ -364,20 +435,20 @@ export default function DashboardPage() {
       </motion.aside>
 
       {/* Main content */}
-      <main className="flex flex-1 flex-col">
+      <main className="flex flex-1 flex-col min-w-0">
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-slate-800/60 bg-slate-950/80 px-8 py-4 backdrop-blur-md">
+        <header className="flex items-center justify-between border-b border-slate-800/60 bg-slate-950/80 px-4 py-3 backdrop-blur-md md:px-8 md:py-4">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-            <h1 className="text-lg font-semibold">Dashboard Overview</h1>
-            <p className="text-sm text-slate-400 mt-0.5">Monitor properties & occupancy</p>
+            <h1 className="text-base font-semibold md:text-lg">Dashboard Overview</h1>
+            <p className="text-xs text-slate-400 mt-0.5 md:text-sm">Monitor properties & occupancy</p>
           </motion.div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             <div className="hidden rounded-full bg-slate-900/80 px-4 py-1.5 text-sm text-slate-400 ring-1 ring-slate-800 sm:block">
               {currentUser.email}
             </div>
             <motion.button
               onClick={handleLogout}
-              className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-slate-800/40 px-4 py-2 text-sm font-medium text-slate-300 hover:border-red-600/50 hover:bg-red-900/20 hover:text-red-300 transition-colors"
+              className="flex items-center gap-2 rounded-lg border border-slate-700/70 bg-slate-800/40 px-3 py-2 text-xs font-medium text-slate-300 hover:border-red-600/50 hover:bg-red-900/20 hover:text-red-300 transition-colors md:px-4 md:text-sm"
               whileHover={{ scale: 1.05 }}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -385,14 +456,14 @@ export default function DashboardPage() {
                 <polyline points="16 17 21 12 16 7" />
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </motion.button>
           </div>
         </header>
 
         {/* Stats Cards */}
-        <section className="px-8 pt-8 pb-4">
-          <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <section className="px-4 pt-6 pb-4 md:px-8 md:pt-8">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Portfolio Snapshot</h2>
               {lastUpdated && (
@@ -401,7 +472,7 @@ export default function DashboardPage() {
             </div>
             <motion.button
               onClick={() => setModalOpen(true)}
-              className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-700/30 hover:from-sky-500 hover:to-blue-500 hover:shadow-sky-500/40 transition-all active:scale-97"
+              className="flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-700/30 hover:from-sky-500 hover:to-blue-500 transition-all"
               whileHover={{ scale: 1.05 }}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -412,9 +483,9 @@ export default function DashboardPage() {
             </motion.button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <motion.div
-              className="rounded-xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm transition hover:-translate-y-1 hover:border-blue-600/40 hover:shadow-blue-900/10"
+              className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-sm transition hover:-translate-y-1 hover:border-blue-600/40"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
@@ -434,7 +505,7 @@ export default function DashboardPage() {
             </motion.div>
 
             <motion.div
-              className="rounded-xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm transition hover:-translate-y-1 hover:border-emerald-600/40 hover:shadow-emerald-900/10"
+              className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-sm transition hover:-translate-y-1 hover:border-emerald-600/40"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -453,7 +524,7 @@ export default function DashboardPage() {
             </motion.div>
 
             <motion.div
-              className="rounded-xl border border-slate-800 bg-slate-900/70 p-6 shadow-sm transition hover:-translate-y-1 hover:border-rose-600/40 hover:shadow-rose-900/10"
+              className="rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-sm transition hover:-translate-y-1 hover:border-rose-600/40"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
@@ -477,156 +548,175 @@ export default function DashboardPage() {
 
           {/* Occupancy Trend Chart */}
           <motion.div
-            className="mt-8 rounded-xl border border-slate-800 bg-slate-900/70 p-6"
+            className="mt-6 rounded-xl border border-slate-800 bg-slate-900/70 p-4 md:mt-8 md:p-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
           >
-            <h3 className="text-sm font-semibold text-slate-200 mb-4">Occupancy Trend (Last 7 Days)</h3>
-            <ResponsiveContainer width="100%" height={200}>
+            <div className="mb-4 flex flex-wrap items-center gap-4">
+              <h3 className="text-sm font-semibold text-slate-200">Property Status – Last 7 Days</h3>
+              <div className="flex items-center gap-4 text-xs text-slate-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-4 rounded-sm bg-emerald-500" /> Available
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-4 rounded-sm bg-rose-500" /> Booked
+                </span>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData}>
-                <XAxis dataKey="day" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "none" }} />
-                <Line type="monotone" dataKey="available" stroke="#10b981" dot={false} />
-                <Line type="monotone" dataKey="booked" stroke="#f43f5e" dot={false} />
+                <XAxis dataKey="day" stroke="#94a3b8" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#94a3b8" allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ backgroundColor: "#1e293b", border: "none", fontSize: 12 }} />
+                <Line type="monotone" dataKey="available" stroke="#10b981" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="booked" stroke="#f43f5e" dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
+            {properties.length === 0 && !fetching && (
+              <p className="mt-2 text-center text-xs text-slate-600">Add properties to see real data here.</p>
+            )}
           </motion.div>
         </section>
 
         {/* Properties Table */}
-        <section id="properties-table" className="flex-1 px-8 py-6">
-          <div className="mb-5 flex items-center justify-between flex-wrap gap-4">
-            <h3 className="text-lg font-semibold text-slate-200">Your Properties</h3>
-            <div className="flex items-center gap-4 flex-wrap">
+        <section id="properties-table" className="flex-1 px-4 py-5 md:px-8 md:py-6">
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <h3 className="text-base font-semibold text-slate-200 md:text-lg">Your Properties</h3>
+            <div className="flex flex-wrap items-center gap-3">
               <input
                 type="text"
                 placeholder="Search properties..."
                 value={searchQuery}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition min-w-[200px]"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition sm:w-auto sm:min-w-[180px]"
               />
-              <select
-                value={sortBy}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value as SortKey)}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="pricePerNight">Sort by Price</option>
-                <option value="status">Sort by Status</option>
-                <option value="createdAt">Sort by Date Added</option>
-              </select>
-              <button
-                onClick={() => setSortAsc(!sortAsc)}
-                className="text-sm text-slate-400 hover:text-slate-200 transition"
-              >
-                {sortAsc ? "↑ Asc" : "↓ Desc"}
-              </button>
+              <div className="flex items-center gap-2">
+                <select
+                  value={sortBy}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSortBy(e.target.value as SortKey)}
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:ring-2 focus:ring-sky-500/30 outline-none transition"
+                >
+                  <option value="name">Name</option>
+                  <option value="pricePerNight">Price</option>
+                  <option value="status">Status</option>
+                  <option value="createdAt">Date Added</option>
+                </select>
+                <button
+                  onClick={() => setSortAsc(!sortAsc)}
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-400 hover:text-slate-200 transition"
+                >
+                  {sortAsc ? "↑" : "↓"}
+                </button>
+              </div>
               <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-400 ring-1 ring-slate-700">
                 {filteredProperties.length} {filteredProperties.length === 1 ? "property" : "properties"}
               </span>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-slate-800 shadow-2xl shadow-black/40 overflow-y-auto max-h-[60vh]">
-            <table className="min-w-full divide-y divide-slate-800 text-sm">
-              <thead className="bg-slate-900/80 sticky top-0">
-                <tr>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Property</th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Price / Night</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-400">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {fetching ? (
+          <div className="overflow-hidden rounded-xl border border-slate-800 shadow-2xl shadow-black/40">
+            <div className="overflow-x-auto overflow-y-auto max-h-[60vh]">
+              <table className="min-w-full divide-y divide-slate-800 text-sm">
+                <thead className="bg-slate-900/80 sticky top-0">
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-500">
-                      <div className="flex items-center justify-center gap-3">
-                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-600 border-t-sky-500" />
-                        Loading properties...
-                      </div>
-                    </td>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 md:px-6 md:py-4">Property</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400 md:px-6 md:py-4">Price / Night</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400 md:px-6 md:py-4">Status</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-400 md:px-6 md:py-4">Actions</th>
                   </tr>
-                ) : filteredProperties.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-16 text-center">
-                      <div className="mx-auto flex max-w-md flex-col items-center gap-4 text-slate-400">
-                        <svg className="h-16 w-16 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                          <polyline points="9 22 9 12 15 12 15 22" />
-                        </svg>
-                        <p className="text-lg font-medium text-slate-300">No properties found</p>
-                        <p className="text-sm">Try adjusting your search or add a new one.</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredProperties.map((property, index) => (
-                    <motion.tr
-                      key={property.id}
-                      className="group hover:bg-slate-800/40 transition-colors"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: index * 0.05 }}
-                    >
-                      <td className="whitespace-nowrap px-6 py-4 font-medium text-slate-100">
-                        {property.name}
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {fetching ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center text-slate-500">
+                        <div className="flex items-center justify-center gap-3">
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-600 border-t-sky-500" />
+                          Loading properties...
+                        </div>
                       </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-right">
-                        <span className="font-semibold text-slate-50">
-                          ${property.pricePerNight.toLocaleString()}
-                        </span>
-                        <span className="ml-1.5 text-xs text-slate-500">/night</span>
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4">
-                        <StatusBadge status={property.status} />
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-right flex gap-2 justify-end">
-                        <motion.button
-                          onClick={() => handleEdit(property)}
-                          className="inline-flex items-center gap-1.5 rounded border border-transparent px-3 py-1.5 text-xs font-medium text-slate-400 hover:border-sky-600/40 hover:bg-sky-900/20 hover:text-sky-300 transition-colors"
-                          whileHover={{ scale: 1.05 }}
-                        >
-                          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </tr>
+                  ) : filteredProperties.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center">
+                        <div className="mx-auto flex max-w-md flex-col items-center gap-3 text-slate-400">
+                          <svg className="h-12 w-12 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
                           </svg>
-                          Edit
-                        </motion.button>
-                        <motion.button
-                          onClick={() => setDeleteConfirmId(property.id)}
-                          disabled={deletingId === property.id}
-                          className="inline-flex items-center gap-1.5 rounded border border-transparent px-3 py-1.5 text-xs font-medium text-slate-400 hover:border-rose-600/40 hover:bg-rose-900/20 hover:text-rose-300 disabled:opacity-50 transition-colors"
-                          whileHover={{ scale: 1.05 }}
-                        >
-                          {deletingId === property.id ? (
-                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
-                          ) : (
-                            <>
-                              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                                <path d="M10 11v6M14 11v6" />
-                                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
-                              Delete
-                            </>
-                          )}
-                        </motion.button>
+                          <p className="text-base font-medium text-slate-300">No properties found</p>
+                          <p className="text-sm">Try adjusting your search or add a new one.</p>
+                        </div>
                       </td>
-                    </motion.tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                    </tr>
+                  ) : (
+                    filteredProperties.map((property, index) => (
+                      <motion.tr
+                        key={property.id}
+                        className="group hover:bg-slate-800/40 transition-colors"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 font-medium text-slate-100 md:px-6 md:py-4">
+                          {property.name}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right md:px-6 md:py-4">
+                          <span className="font-semibold text-slate-50">
+                            ${property.pricePerNight.toLocaleString()}
+                          </span>
+                          <span className="ml-1 text-xs text-slate-500">/night</span>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 md:px-6 md:py-4">
+                          <StatusBadge status={property.status} />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right md:px-6 md:py-4">
+                          <div className="flex gap-1.5 justify-end">
+                            <motion.button
+                              onClick={() => handleEdit(property)}
+                              className="inline-flex items-center gap-1 rounded border border-transparent px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:border-sky-600/40 hover:bg-sky-900/20 hover:text-sky-300 transition-colors"
+                              whileHover={{ scale: 1.05 }}
+                            >
+                              <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                              <span className="hidden sm:inline">Edit</span>
+                            </motion.button>
+                            <motion.button
+                              onClick={() => setDeleteConfirmId(property.id)}
+                              disabled={deletingId === property.id}
+                              className="inline-flex items-center gap-1 rounded border border-transparent px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:border-rose-600/40 hover:bg-rose-900/20 hover:text-rose-300 disabled:opacity-50 transition-colors"
+                              whileHover={{ scale: 1.05 }}
+                            >
+                              {deletingId === property.id ? (
+                                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                              ) : (
+                                <>
+                                  <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                    <path d="M10 11v6M14 11v6" />
+                                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                  </svg>
+                                  <span className="hidden sm:inline">Delete</span>
+                                </>
+                              )}
+                            </motion.button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {error && <p className="mt-4 text-sm text-rose-400">{error}</p>}
         </section>
 
-        <footer className="border-t border-slate-800/60 px-8 py-4 text-center text-xs text-slate-600">
+        <footer className="border-t border-slate-800/60 px-4 py-4 text-center text-xs text-slate-600 md:px-8">
           PMS Lite © 2026 — Next.js + Firebase
         </footer>
       </main>
@@ -638,7 +728,7 @@ export default function DashboardPage() {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 right-8 rounded-lg bg-emerald-900/80 px-6 py-3 text-sm text-emerald-300 shadow-lg z-50"
+            className="fixed bottom-6 left-4 right-4 rounded-lg bg-emerald-900/80 px-5 py-3 text-sm text-emerald-300 shadow-lg z-50 text-center sm:left-auto sm:right-8 sm:w-auto"
           >
             {toast}
           </motion.div>
@@ -712,7 +802,7 @@ export default function DashboardPage() {
             }}
           >
             <motion.div
-              className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl"
+              className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl md:p-7"
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               onClick={(e) => e.stopPropagation()}
@@ -801,14 +891,14 @@ export default function DashboardPage() {
                       setModalOpen(false);
                       resetForm();
                     }}
-                    className="rounded-lg border border-slate-700 px-6 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+                    className="rounded-lg border border-slate-700 px-5 py-3 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg hover:from-sky-500 hover:to-blue-500 disabled:opacity-60 transition-all"
+                    className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg hover:from-sky-500 hover:to-blue-500 disabled:opacity-60 transition-all"
                   >
                     {saving && (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-transparent" />
@@ -822,6 +912,85 @@ export default function DashboardPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ── Mobile sidebar content (reused inside the drawer) ──────────────────────
+function MobileSidebarContent({
+  currentUser,
+  onClose,
+  onLogout,
+}: {
+  currentUser: { email?: string | null };
+  onClose: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <>
+      <div className="mb-8 flex items-center gap-3 px-1">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 text-sm font-bold shadow-lg shadow-sky-500/30">
+          PL
+        </div>
+        <div>
+          <p className="text-base font-semibold tracking-tight">PMS Lite</p>
+          <p className="text-xs text-slate-500">Property Management</p>
+        </div>
+      </div>
+
+      <nav className="space-y-1 text-sm">
+        <div className="flex items-center gap-3 rounded-lg bg-slate-800/70 px-4 py-3 text-slate-50 ring-1 ring-slate-700/60">
+          <svg className="h-5 w-5 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+          </svg>
+          <span className="font-medium">Dashboard</span>
+          <div className="ml-auto h-2 w-2 rounded-full bg-emerald-400" />
+        </div>
+
+        <a
+          href="#properties-table"
+          onClick={onClose}
+          className="flex items-center gap-3 rounded-lg px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 transition-colors"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+          <span>Properties</span>
+        </a>
+
+        <button
+          onClick={() => alert("Settings module – coming soon")}
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 transition-colors"
+        >
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <span>Settings</span>
+        </button>
+      </nav>
+
+      <div className="mt-auto space-y-3">
+        <div className="rounded-xl border border-slate-800/60 bg-slate-900/60 px-4 py-3 text-xs">
+          <p className="text-slate-500">Signed in as</p>
+          <p className="mt-1 font-medium text-slate-300 truncate">{currentUser.email ?? "—"}</p>
+        </div>
+        <button
+          onClick={onLogout}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700/70 bg-slate-800/40 px-4 py-2.5 text-sm font-medium text-slate-300 hover:border-red-600/50 hover:bg-red-900/20 hover:text-red-300 transition-colors"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Logout
+        </button>
+      </div>
+    </>
   );
 }
 
